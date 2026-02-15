@@ -11,6 +11,8 @@ class ShoppingItemsTable extends Table {
 
   BoolColumn get isChecked => boolean().withDefault(const Constant(false))();
 
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
   DateTimeColumn get createdAt => dateTime()();
 
   DateTimeColumn get updatedAt => dateTime().nullable()();

@@ -10,13 +10,37 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
     with _$ShoppingListsDaoMixin {
   ShoppingListsDao(super.db);
 
+  Future<List<ShoppingListsTableData>> getListsForOwner(String ownerId) {
+    final query = select(attachedDatabase.shoppingListsTable)
+      ..where((table) => table.ownerId.equals(ownerId))
+      ..orderBy([
+        (table) => OrderingTerm.asc(table.sortOrder),
+        (table) => OrderingTerm.asc(table.createdAt),
+      ]);
+    return query.get();
+  }
+
   Stream<List<ShoppingListsTableData>> watchListsForOwner(String ownerId) {
     final query = select(attachedDatabase.shoppingListsTable)
-      ..where((table) => table.ownerId.equals(ownerId));
+      ..where((table) => table.ownerId.equals(ownerId))
+      ..orderBy([
+        (table) => OrderingTerm.asc(table.sortOrder),
+        (table) => OrderingTerm.asc(table.createdAt),
+      ]);
     return query.watch();
   }
 
-  Future<void> upsertList(ShoppingListsTableCompanion list) async {
+  Future<ShoppingListsTableData?> getListById(String id) {
+    return (select(attachedDatabase.shoppingListsTable)
+          ..where((table) => table.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<void> insertList(ShoppingListsTableCompanion list) async {
+    await into(attachedDatabase.shoppingListsTable).insert(list);
+  }
+
+  Future<void> updateList(ShoppingListsTableCompanion list) async {
     await into(attachedDatabase.shoppingListsTable).insertOnConflictUpdate(list);
   }
 
@@ -24,5 +48,27 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
     return (delete(attachedDatabase.shoppingListsTable)
           ..where((table) => table.id.equals(id)))
         .go();
+  }
+
+  Future<void> reorderLists({
+    required String ownerId,
+    required List<String> orderedIds,
+  }) async {
+    await transaction(() async {
+      for (var index = 0; index < orderedIds.length; index++) {
+        final id = orderedIds[index];
+        await (update(attachedDatabase.shoppingListsTable)
+              ..where(
+                (table) =>
+                    table.id.equals(id) & table.ownerId.equals(ownerId),
+              ))
+            .write(
+          ShoppingListsTableCompanion(
+            sortOrder: Value(index),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+    });
   }
 }

@@ -9,6 +9,8 @@ class ShoppingListsTable extends Table {
 
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
 
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
   DateTimeColumn get createdAt => dateTime()();
 
   DateTimeColumn get updatedAt => dateTime().nullable()();

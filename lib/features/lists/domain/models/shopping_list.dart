@@ -10,6 +10,7 @@ abstract class ShoppingList with _$ShoppingList {
     required String ownerId,
     required String name,
     @Default(false) bool isArchived,
+    @Default(0) int sortOrder,
     required DateTime createdAt,
     DateTime? updatedAt,
   }) = _ShoppingList;
