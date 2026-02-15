@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app_router.dart';
+import '../../../core/extensions/build_context_l10n.dart';
 import '../../auth/data/firebase_auth_repository.dart';
 import '../domain/models/shopping_list.dart';
 import 'controllers/list_providers.dart';
@@ -11,24 +12,25 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final listsAsync = ref.watch(listStreamProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Shopping Lists'),
+        title: Text(l10n.listsTitle),
         actions: [
           IconButton(
             onPressed: () => ref.read(authRepositoryProvider).signOut(),
             icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
+            tooltip: l10n.commonSignOut,
           ),
         ],
       ),
       body: listsAsync.when(
         data: (lists) {
           if (lists.isEmpty) {
-            return const Center(
-              child: Text('No lists yet. Create your first shopping list.'),
+            return Center(
+              child: Text(l10n.listsEmptyState),
             );
           }
 
@@ -43,22 +45,24 @@ class HomeScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Failed to load lists: $error')),
+        error: (error, stackTrace) =>
+            Center(child: Text(l10n.listsFailedToLoad(error.toString()))),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateDialog(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('New list'),
+        label: Text(l10n.listsNewList),
       ),
     );
   }
 
   Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
     final name = await _showNameInputDialog(
       context: context,
-      title: 'Create List',
+      title: l10n.listsCreateListTitle,
       initialValue: '',
-      confirmLabel: 'Create',
+      confirmLabel: l10n.commonCreate,
     );
     if (name == null) {
       return;
@@ -75,6 +79,7 @@ class _ListCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final countAsync = ref.watch(itemCountProvider(list.id));
 
     return Card(
@@ -83,9 +88,9 @@ class _ListCard extends ConsumerWidget {
         title: Text(list.name),
         subtitle: Text(
           countAsync.when(
-            data: (count) => '$count items',
-            loading: () => 'Loading items...',
-            error: (error, stackTrace) => 'Unable to count items',
+            data: (count) => l10n.listsItemCount(count),
+            loading: () => l10n.listsItemCountLoading,
+            error: (error, stackTrace) => l10n.listsItemCountError,
           ),
         ),
         trailing: PopupMenuButton<_ListMenuAction>(
@@ -94,9 +99,9 @@ class _ListCard extends ConsumerWidget {
               case _ListMenuAction.rename:
                 final renamed = await _showNameInputDialog(
                   context: context,
-                  title: 'Rename List',
+                  title: l10n.listsRenameListTitle(list.name),
                   initialValue: list.name,
-                  confirmLabel: 'Save',
+                  confirmLabel: l10n.commonSave,
                 );
                 if (renamed != null) {
                   await ref
@@ -111,9 +116,9 @@ class _ListCard extends ConsumerWidget {
                 }
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Deleted "${list.name}"'),
+                    content: Text(l10n.listsDeletedList(list.name)),
                     action: SnackBarAction(
-                      label: 'Undo',
+                      label: l10n.commonUndo,
                       onPressed: () => ref
                           .read(homeListsControllerProvider)
                           .restoreList(list.id),
@@ -123,14 +128,14 @@ class _ListCard extends ConsumerWidget {
                 break;
             }
           },
-          itemBuilder: (context) => const [
+          itemBuilder: (context) => [
             PopupMenuItem(
               value: _ListMenuAction.rename,
-              child: Text('Rename'),
+              child: Text(l10n.commonRename),
             ),
             PopupMenuItem(
               value: _ListMenuAction.delete,
-              child: Text('Delete'),
+              child: Text(l10n.commonDelete),
             ),
           ],
         ),
@@ -147,6 +152,7 @@ Future<String?> _showNameInputDialog({
   required String initialValue,
   required String confirmLabel,
 }) async {
+  final l10n = context.l10n;
   final controller = TextEditingController(text: initialValue);
   final formKey = GlobalKey<FormState>();
 
@@ -160,10 +166,10 @@ Future<String?> _showNameInputDialog({
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Name'),
+            decoration: InputDecoration(labelText: l10n.commonName),
             validator: (value) {
               if ((value ?? '').trim().isEmpty) {
-                return 'Name is required';
+                return l10n.listsNameRequired;
               }
               return null;
             },
@@ -177,7 +183,7 @@ Future<String?> _showNameInputDialog({
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () {

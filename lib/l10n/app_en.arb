@@ -1,0 +1,130 @@
+{
+  "@@locale": "en",
+  "appTitle": "Pocket Cart",
+  "@appTitle": { "description": "Application title" },
+
+  "commonEmail": "Email",
+  "@commonEmail": { "description": "Label for email fields" },
+  "commonPassword": "Password",
+  "@commonPassword": { "description": "Label for password fields" },
+  "commonSignOut": "Sign out",
+  "@commonSignOut": { "description": "Tooltip or action label for signing out" },
+  "commonUndo": "Undo",
+  "@commonUndo": { "description": "Undo action label" },
+  "commonCancel": "Cancel",
+  "@commonCancel": { "description": "Cancel button label" },
+  "commonSave": "Save",
+  "@commonSave": { "description": "Save button label" },
+  "commonCreate": "Create",
+  "@commonCreate": { "description": "Create button label" },
+  "commonDelete": "Delete",
+  "@commonDelete": { "description": "Delete action label" },
+  "commonRename": "Rename",
+  "@commonRename": { "description": "Rename action label" },
+  "commonName": "Name",
+  "@commonName": { "description": "Name field label" },
+  "commonAdd": "Add",
+  "@commonAdd": { "description": "Add button label" },
+
+  "authSignInTitle": "Sign In",
+  "@authSignInTitle": { "description": "Title for sign-in screen" },
+  "authSignInButton": "Sign In",
+  "@authSignInButton": { "description": "Primary sign-in button label" },
+  "authSigningIn": "Signing in...",
+  "@authSigningIn": { "description": "Loading label while signing in" },
+  "authCreateAccountLink": "Create account",
+  "@authCreateAccountLink": { "description": "Link to sign-up screen" },
+  "authForgotPasswordLink": "Forgot password?",
+  "@authForgotPasswordLink": { "description": "Link to password reset screen" },
+  "authSignInFailed": "Failed to sign in.",
+  "@authSignInFailed": { "description": "Log/snackbar message for sign-in failure" },
+
+  "authSignUpTitle": "Sign Up",
+  "@authSignUpTitle": { "description": "Title for sign-up screen" },
+  "authCreateAccountButton": "Create account",
+  "@authCreateAccountButton": { "description": "Primary sign-up button label" },
+  "authCreatingAccount": "Creating...",
+  "@authCreatingAccount": { "description": "Loading label while creating account" },
+  "authSignUpFailed": "Failed to sign up.",
+  "@authSignUpFailed": { "description": "Log/snackbar message for sign-up failure" },
+
+  "authResetPasswordTitle": "Reset Password",
+  "@authResetPasswordTitle": { "description": "Title for reset password screen" },
+  "authSendResetLink": "Send reset link",
+  "@authSendResetLink": { "description": "Primary reset password button label" },
+  "authSendingResetLink": "Sending...",
+  "@authSendingResetLink": { "description": "Loading label while sending reset link" },
+  "authResetEmailSent": "Reset email sent.",
+  "@authResetEmailSent": { "description": "Snackbar shown after reset email is sent" },
+  "authResetPasswordFailed": "Failed to reset password.",
+  "@authResetPasswordFailed": { "description": "Log/snackbar message for reset password failure" },
+
+  "listsTitle": "Shopping Lists",
+  "@listsTitle": { "description": "Title for shopping lists screen" },
+  "listsEmptyState": "No lists yet. Create your first shopping list.",
+  "@listsEmptyState": { "description": "Empty state text when no shopping lists exist" },
+  "listsFailedToLoad": "Failed to load lists: {error}",
+  "@listsFailedToLoad": {
+    "description": "Error text when loading lists fails",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "listsNewList": "New list",
+  "@listsNewList": { "description": "Label for create list floating action button" },
+  "listsCreateListTitle": "Create List",
+  "@listsCreateListTitle": { "description": "Dialog title for creating a shopping list" },
+  "listsRenameListTitle": "Rename {listName}",
+  "@listsRenameListTitle": {
+    "description": "Dialog title for renaming a shopping list",
+    "placeholders": {
+      "listName": { "type": "String" }
+    }
+  },
+  "listsDeletedList": "Deleted \"{name}\"",
+  "@listsDeletedList": {
+    "description": "Snackbar message shown when a list is deleted",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "listsItemCount": "{count, plural, =0{No items} =1{1 item} other{{count} items}}",
+  "@listsItemCount": {
+    "description": "Item count label for a list",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "listsItemCountLoading": "Loading items...",
+  "@listsItemCountLoading": { "description": "Placeholder text while loading list item count" },
+  "listsItemCountError": "Unable to count items",
+  "@listsItemCountError": { "description": "Error text when item count cannot be loaded" },
+  "listsNameRequired": "Name is required",
+  "@listsNameRequired": { "description": "Validation message for required list or item name" },
+
+  "listsDetailFallbackTitle": "List Detail",
+  "@listsDetailFallbackTitle": { "description": "Fallback app bar title for list detail screen" },
+  "listsNoItemsYet": "No items yet. Add one below.",
+  "@listsNoItemsYet": { "description": "Empty state text when list has no items" },
+  "listsCheckedSection": "Checked",
+  "@listsCheckedSection": { "description": "Header label for checked items section" },
+  "listsFailedToLoadItems": "Failed to load items: {error}",
+  "@listsFailedToLoadItems": {
+    "description": "Error text when loading list items fails",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "listsAddItemHint": "Add item",
+  "@listsAddItemHint": { "description": "Hint text for quick add item field" },
+  "listsDeletedItem": "Deleted \"{name}\"",
+  "@listsDeletedItem": {
+    "description": "Snackbar message shown when an item is deleted",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "settingsPlaceholder": "Settings placeholder",
+  "@settingsPlaceholder": { "description": "Placeholder text for settings screen" }
+}

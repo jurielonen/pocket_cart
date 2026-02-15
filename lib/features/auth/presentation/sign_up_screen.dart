@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app_router.dart';
+import '../../../core/extensions/build_context_l10n.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/firebase_auth_repository.dart';
 
@@ -47,8 +48,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (!mounted) {
         return;
       }
+      final l10n = context.l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(l10n.authSignUpFailed)),
       );
     } finally {
       if (mounted) {
@@ -61,8 +63,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign Up')),
+      appBar: AppBar(title: Text(l10n.authSignUpTitle)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -71,18 +75,22 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(labelText: l10n.commonEmail),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: InputDecoration(labelText: l10n.commonPassword),
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _isLoading ? null : _submit,
-              child: Text(_isLoading ? 'Creating...' : 'Create account'),
+              child: Text(
+                _isLoading
+                    ? l10n.authCreatingAccount
+                    : l10n.authCreateAccountButton,
+              ),
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/extensions/build_context_l10n.dart';
 import '../domain/models/shopping_item.dart';
 import 'controllers/list_providers.dart';
 
@@ -45,15 +46,16 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final itemsAsync = ref.watch(itemStreamProvider(widget.listId));
     final listAsync = ref.watch(listByIdStreamProvider(widget.listId));
 
     return Scaffold(
       appBar: AppBar(
         title: listAsync.when(
-          data: (list) => Text(list?.name ?? 'List Detail'),
-          loading: () => const Text('List Detail'),
-          error: (error, stackTrace) => const Text('List Detail'),
+          data: (list) => Text(list?.name ?? l10n.listsDetailFallbackTitle),
+          loading: () => Text(l10n.listsDetailFallbackTitle),
+          error: (error, stackTrace) => Text(l10n.listsDetailFallbackTitle),
         ),
       ),
       body: Column(
@@ -65,8 +67,8 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 final checked = items.where((item) => item.isChecked).toList();
 
                 if (items.isEmpty) {
-                  return const Center(
-                    child: Text('No items yet. Add one below.'),
+                  return Center(
+                    child: Text(l10n.listsNoItemsYet),
                   );
                 }
 
@@ -113,7 +115,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                         child: Text(
-                          'Checked',
+                          l10n.listsCheckedSection,
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                       ),
@@ -131,7 +133,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stackTrace) => Center(
-                child: Text('Failed to load items: $error'),
+                child: Text(l10n.listsFailedToLoadItems(error.toString())),
               ),
             ),
           ),
@@ -147,8 +149,8 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                       focusNode: _focusNode,
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _addItem(),
-                      decoration: const InputDecoration(
-                        hintText: 'Add item',
+                      decoration: InputDecoration(
+                        hintText: l10n.listsAddItemHint,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -156,7 +158,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: _addItem,
-                    child: const Text('Add'),
+                    child: Text(l10n.commonAdd),
                   ),
                 ],
               ),
@@ -168,6 +170,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   }
 
   Future<void> _deleteWithUndo(ShoppingItem item) async {
+    final l10n = context.l10n;
     await ref.read(listDetailControllerProvider).deleteItem(item.id);
     if (!mounted) {
       return;
@@ -175,9 +178,9 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Deleted "${item.name}"'),
+        content: Text(l10n.listsDeletedItem(item.name)),
         action: SnackBarAction(
-          label: 'Undo',
+          label: l10n.commonUndo,
           onPressed: () =>
               ref.read(listDetailControllerProvider).restoreItem(item.id),
         ),

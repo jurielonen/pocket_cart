@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app_router.dart';
+import '../../../core/extensions/build_context_l10n.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/firebase_auth_repository.dart';
 
@@ -43,8 +44,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (!mounted) {
         return;
       }
+      final l10n = context.l10n;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(l10n.authSignInFailed)),
       );
     } finally {
       if (mounted) {
@@ -57,8 +59,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign In')),
+      appBar: AppBar(title: Text(l10n.authSignInTitle)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -67,26 +71,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(labelText: l10n.commonEmail),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: InputDecoration(labelText: l10n.commonPassword),
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _isLoading ? null : _submit,
-              child: Text(_isLoading ? 'Signing in...' : 'Sign In'),
+              child: Text(
+                _isLoading ? l10n.authSigningIn : l10n.authSignInButton,
+              ),
             ),
             TextButton(
               onPressed: () => const SignUpRoute().push(context),
-              child: const Text('Create account'),
+              child: Text(l10n.authCreateAccountLink),
             ),
             TextButton(
               onPressed: () => const ResetPasswordRoute().push(context),
-              child: const Text('Forgot password?'),
+              child: Text(l10n.authForgotPasswordLink),
             ),
           ],
         ),

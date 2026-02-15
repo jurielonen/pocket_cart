@@ -1,0 +1,55 @@
+{
+  "@@locale": "fi",
+  "appTitle": "Pocket Cart",
+
+  "commonEmail": "Sähköposti",
+  "commonPassword": "Salasana",
+  "commonSignOut": "Kirjaudu ulos",
+  "commonUndo": "Kumoa",
+  "commonCancel": "Peruuta",
+  "commonSave": "Tallenna",
+  "commonCreate": "Luo",
+  "commonDelete": "Poista",
+  "commonRename": "Nimeä uudelleen",
+  "commonName": "Nimi",
+  "commonAdd": "Lisää",
+
+  "authSignInTitle": "Kirjaudu sisään",
+  "authSignInButton": "Kirjaudu sisään",
+  "authSigningIn": "Kirjaudutaan...",
+  "authCreateAccountLink": "Luo tili",
+  "authForgotPasswordLink": "Unohtuiko salasana?",
+  "authSignInFailed": "Sisäänkirjautuminen epäonnistui.",
+
+  "authSignUpTitle": "Rekisteröidy",
+  "authCreateAccountButton": "Luo tili",
+  "authCreatingAccount": "Luodaan...",
+  "authSignUpFailed": "Rekisteröityminen epäonnistui.",
+
+  "authResetPasswordTitle": "Nollaa salasana",
+  "authSendResetLink": "Lähetä palautuslinkki",
+  "authSendingResetLink": "Lähetetään...",
+  "authResetEmailSent": "Palautussähköposti lähetetty.",
+  "authResetPasswordFailed": "Salasanan nollaus epäonnistui.",
+
+  "listsTitle": "Ostoslistat",
+  "listsEmptyState": "Ei listoja vielä. Luo ensimmäinen ostoslistasi.",
+  "listsFailedToLoad": "Listojen lataus epäonnistui: {error}",
+  "listsNewList": "Uusi lista",
+  "listsCreateListTitle": "Luo lista",
+  "listsRenameListTitle": "Nimeä uudelleen {listName}",
+  "listsDeletedList": "Poistettu \"{name}\"",
+  "listsItemCount": "{count, plural, =0{Ei tuotteita} =1{1 tuote} other{{count} tuotetta}}",
+  "listsItemCountLoading": "Ladataan tuotteita...",
+  "listsItemCountError": "Tuotteiden määrää ei voitu laskea",
+  "listsNameRequired": "Nimi on pakollinen",
+
+  "listsDetailFallbackTitle": "Listan tiedot",
+  "listsNoItemsYet": "Ei tuotteita vielä. Lisää tuote alle.",
+  "listsCheckedSection": "Valittu",
+  "listsFailedToLoadItems": "Tuotteiden lataus epäonnistui: {error}",
+  "listsAddItemHint": "Lisää tuote",
+  "listsDeletedItem": "Poistettu \"{name}\"",
+
+  "settingsPlaceholder": "Asetusten paikanvaraaja"
+}

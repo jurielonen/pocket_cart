@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_router.dart';
+import 'core/extensions/build_context_l10n.dart';
 import 'features/lists/data/sync/sync_providers.dart';
 import 'firebase_options.dart';
+import 'l10n/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,11 +23,13 @@ class PocketCartApp extends ConsumerWidget {
     ref.watch(syncLifecycleProvider);
 
     return MaterialApp.router(
-      title: 'Pocket Cart',
+      onGenerateTitle: (context) => context.l10n.appTitle,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
     );
   }
