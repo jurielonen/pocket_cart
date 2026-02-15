@@ -20,15 +20,15 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
 
   @override
   Future<List<ShoppingList>> getListsForOwner(String ownerId) async {
-    final rows = await _dao.getListsForOwner(ownerId);
+    final rows = await _dao.getLists(ownerId);
     return rows.map(_toModel).toList(growable: false);
   }
 
   @override
   Stream<List<ShoppingList>> watchListsForOwner(String ownerId) {
-    return _dao
-        .watchListsForOwner(ownerId)
-        .map((rows) => rows.map(_toModel).toList(growable: false));
+    return _dao.watchLists(ownerId).map(
+          (rows) => rows.map(_toModel).toList(growable: false),
+        );
   }
 
   @override
@@ -38,36 +38,38 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
   }
 
   @override
-  Future<void> create(ShoppingList list) {
-    final now = _now();
-    final writeModel = list.copyWith(
-      isDeleted: false,
-      deletedAt: null,
-      updatedAt: now,
-    );
-    return _writeAndQueueUpsert(writeModel);
-  }
-
-  @override
-  Future<void> update(ShoppingList list) {
+  Future<void> create(ShoppingList list) async {
     final now = _now();
     final writeModel = list.copyWith(
       updatedAt: now,
       isDeleted: false,
       deletedAt: null,
     );
-    return _writeAndQueueUpsert(writeModel);
+    await _dao.upsertList(_toCompanion(writeModel));
+    await _enqueueUpsert(writeModel);
   }
 
   @override
-  Future<void> deleteById(String id) async {
+  Future<void> update(ShoppingList list) async {
+    final now = _now();
+    final writeModel = list.copyWith(
+      updatedAt: now,
+      isDeleted: false,
+      deletedAt: null,
+    );
+    await _dao.upsertList(_toCompanion(writeModel));
+    await _enqueueUpsert(writeModel);
+  }
+
+  @override
+  Future<void> tombstoneById(String id) async {
     final existing = await _dao.getListById(id);
     if (existing == null || existing.isDeleted) {
       return;
     }
 
     final now = _now();
-    await _dao.softDeleteListById(id: id, deletedAt: now);
+    await _dao.tombstoneList(id: id, deletedAt: now);
     await _outboxDao.enqueue(
       SyncOutboxTableCompanion.insert(
         entityType: 'list',
@@ -89,23 +91,44 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
   }
 
   @override
+  Future<void> restoreById(String id) async {
+    final existing = await _dao.getListById(id);
+    if (existing == null || !existing.isDeleted) {
+      return;
+    }
+
+    await _dao.restoreList(id: id);
+    final restored = await _dao.getListById(id);
+    if (restored == null) {
+      return;
+    }
+    await _enqueueUpsert(_toModel(restored));
+  }
+
+  @override
   Future<void> reorder({
     required String ownerId,
     required List<String> orderedIds,
   }) async {
-    await _dao.reorderLists(ownerId: ownerId, orderedIds: orderedIds);
-    final reorderedRows = await _dao.getListsForOwner(ownerId);
-    for (final row in reorderedRows) {
-      await _outboxDao.enqueue(
-        SyncOutboxTableCompanion.insert(
-          entityType: 'list',
-          operation: 'upsert',
-          ownerId: row.ownerId,
-          entityId: row.id,
-          payload: jsonEncode(_payloadFromListRow(row)),
-          createdAt: _now(),
-        ),
+    final existing = await _dao.getLists(ownerId);
+    for (var index = 0; index < orderedIds.length; index++) {
+      final id = orderedIds[index];
+      ShoppingListsTableData? row;
+      for (final item in existing) {
+        if (item.id == id) {
+          row = item;
+          break;
+        }
+      }
+      if (row == null) {
+        continue;
+      }
+      final updated = _toModel(row).copyWith(
+        sortOrder: (index + 1) * 1000,
+        updatedAt: _now(),
       );
+      await _dao.upsertList(_toCompanion(updated));
+      await _enqueueUpsert(updated);
     }
   }
 
@@ -133,52 +156,34 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
       deletedAt: drift.Value(list.deletedAt),
       sortOrder: drift.Value(list.sortOrder),
       createdAt: list.createdAt,
-      updatedAt: drift.Value(list.updatedAt),
+      updatedAt: drift.Value(list.updatedAt ?? list.createdAt),
     );
   }
 
-  Future<void> _writeAndQueueUpsert(ShoppingList list) async {
-    await _dao.updateList(_toCompanion(list));
-    await _outboxDao.enqueue(
+  Future<void> _enqueueUpsert(ShoppingList list) {
+    return _outboxDao.enqueue(
       SyncOutboxTableCompanion.insert(
         entityType: 'list',
         operation: 'upsert',
         ownerId: list.ownerId,
         entityId: list.id,
-        payload: jsonEncode(_payloadFromModel(list)),
+        payload: jsonEncode(
+          {
+            'id': list.id,
+            'ownerId': list.ownerId,
+            'name': list.name,
+            'isArchived': list.isArchived,
+            'isDeleted': list.isDeleted,
+            'sortOrder': list.sortOrder,
+            'createdAt': list.createdAt.millisecondsSinceEpoch,
+            'updatedAt':
+                (list.updatedAt ?? list.createdAt).millisecondsSinceEpoch,
+            'deletedAt': list.deletedAt?.millisecondsSinceEpoch,
+          },
+        ),
         createdAt: _now(),
       ),
     );
-  }
-
-  Map<String, dynamic> _payloadFromModel(ShoppingList list) {
-    return {
-      'id': list.id,
-      'ownerId': list.ownerId,
-      'name': list.name,
-      'isArchived': list.isArchived,
-      'isDeleted': list.isDeleted,
-      'sortOrder': list.sortOrder,
-      'createdAt': list.createdAt.millisecondsSinceEpoch,
-      'updatedAt':
-          (list.updatedAt ?? list.createdAt).millisecondsSinceEpoch,
-      'deletedAt': list.deletedAt?.millisecondsSinceEpoch,
-    };
-  }
-
-  Map<String, dynamic> _payloadFromListRow(ShoppingListsTableData row) {
-    return {
-      'id': row.id,
-      'ownerId': row.ownerId,
-      'name': row.name,
-      'isArchived': row.isArchived,
-      'isDeleted': row.isDeleted,
-      'sortOrder': row.sortOrder,
-      'createdAt': row.createdAt.millisecondsSinceEpoch,
-      'updatedAt':
-          (row.updatedAt ?? row.createdAt).millisecondsSinceEpoch,
-      'deletedAt': row.deletedAt?.millisecondsSinceEpoch,
-    };
   }
 
   DateTime _now() => DateTime.now().toUtc();

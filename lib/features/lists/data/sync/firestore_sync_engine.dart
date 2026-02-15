@@ -190,7 +190,7 @@ class FirestoreSyncEngine {
       return;
     }
 
-    await _listsDao.updateList(
+    await _listsDao.upsertList(
       ShoppingListsTableCompanion.insert(
         id: listId,
         ownerId: (data['ownerId'] as String?) ?? _uid,
@@ -218,7 +218,7 @@ class FirestoreSyncEngine {
       return;
     }
 
-    await _itemsDao.updateItem(
+    await _itemsDao.upsertItem(
       ShoppingItemsTableCompanion.insert(
         id: itemId,
         listId: (data['listId'] as String?) ?? listId,

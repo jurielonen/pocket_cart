@@ -10,28 +10,44 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
     with _$ShoppingItemsDaoMixin {
   ShoppingItemsDao(super.db);
 
-  Future<List<ShoppingItemsTableData>> getItemsForList(String listId) {
+  Stream<List<ShoppingItemsTableData>> watchItems(String listId) {
     final query = select(attachedDatabase.shoppingItemsTable)
       ..where(
         (table) => table.listId.equals(listId) & table.isDeleted.equals(false),
       )
       ..orderBy([
+        (table) => OrderingTerm.asc(table.isChecked),
         (table) => OrderingTerm.asc(table.sortOrder),
-        (table) => OrderingTerm.asc(table.createdAt),
+        (table) => OrderingTerm.desc(table.checkedAt),
+        (table) => OrderingTerm.desc(table.updatedAt),
+      ]);
+    return query.watch();
+  }
+
+  Future<List<ShoppingItemsTableData>> getItems(String listId) {
+    final query = select(attachedDatabase.shoppingItemsTable)
+      ..where(
+        (table) => table.listId.equals(listId) & table.isDeleted.equals(false),
+      )
+      ..orderBy([
+        (table) => OrderingTerm.asc(table.isChecked),
+        (table) => OrderingTerm.asc(table.sortOrder),
+        (table) => OrderingTerm.desc(table.checkedAt),
+        (table) => OrderingTerm.desc(table.updatedAt),
       ]);
     return query.get();
   }
 
-  Stream<List<ShoppingItemsTableData>> watchItemsForList(String listId) {
-    final query = select(attachedDatabase.shoppingItemsTable)
+  Stream<int> watchActiveItemCount(String listId) {
+    final countExp = attachedDatabase.shoppingItemsTable.id.count();
+    final query = selectOnly(attachedDatabase.shoppingItemsTable)
+      ..addColumns([countExp])
       ..where(
-        (table) => table.listId.equals(listId) & table.isDeleted.equals(false),
-      )
-      ..orderBy([
-        (table) => OrderingTerm.asc(table.sortOrder),
-        (table) => OrderingTerm.asc(table.createdAt),
-      ]);
-    return query.watch();
+        attachedDatabase.shoppingItemsTable.listId.equals(listId) &
+            attachedDatabase.shoppingItemsTable.isDeleted.equals(false),
+      );
+
+    return query.watchSingle().map((row) => row.read(countExp) ?? 0);
   }
 
   Future<ShoppingItemsTableData?> getItemById(String id) {
@@ -40,31 +56,48 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
         .getSingleOrNull();
   }
 
-  Future<List<ShoppingItemsTableData>> getAllItemsForList(String listId) {
-    final query = select(attachedDatabase.shoppingItemsTable)
-      ..where((table) => table.listId.equals(listId));
-    return query.get();
+  Future<int> getNextSortOrder(String listId) async {
+    final maxExp = attachedDatabase.shoppingItemsTable.sortOrder.max();
+    final query = selectOnly(attachedDatabase.shoppingItemsTable)
+      ..addColumns([maxExp])
+      ..where(
+        attachedDatabase.shoppingItemsTable.listId.equals(listId) &
+            attachedDatabase.shoppingItemsTable.isDeleted.equals(false),
+      );
+
+    final row = await query.getSingleOrNull();
+    final maxValue = row?.read(maxExp);
+    if (maxValue == null) {
+      return 1000;
+    }
+    return maxValue + 1000;
   }
 
-  Future<void> insertItem(ShoppingItemsTableCompanion item) async {
-    await into(attachedDatabase.shoppingItemsTable).insert(item);
+  Future<void> upsertItem(ShoppingItemsTableCompanion item) {
+    return into(attachedDatabase.shoppingItemsTable).insertOnConflictUpdate(item);
   }
 
-  Future<void> updateItem(ShoppingItemsTableCompanion item) async {
-    await into(attachedDatabase.shoppingItemsTable).insertOnConflictUpdate(item);
-  }
-
-  Future<int> deleteItemById(String id) {
-    return (delete(attachedDatabase.shoppingItemsTable)
+  Future<void> setItemChecked({
+    required String id,
+    required bool isChecked,
+  }) {
+    final now = DateTime.now().toUtc();
+    return (update(attachedDatabase.shoppingItemsTable)
           ..where((table) => table.id.equals(id)))
-        .go();
+        .write(
+      ShoppingItemsTableCompanion(
+        isChecked: Value(isChecked),
+        checkedAt: Value(isChecked ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
-  Future<void> softDeleteItemById({
+  Future<void> tombstoneItem({
     required String id,
     required DateTime deletedAt,
-  }) async {
-    await (update(attachedDatabase.shoppingItemsTable)
+  }) {
+    return (update(attachedDatabase.shoppingItemsTable)
           ..where((table) => table.id.equals(id)))
         .write(
       ShoppingItemsTableCompanion(
@@ -75,19 +108,38 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  Future<void> reorderItems({
+  Future<void> restoreItem({required String id}) {
+    final now = DateTime.now().toUtc();
+    return (update(attachedDatabase.shoppingItemsTable)
+          ..where((table) => table.id.equals(id)))
+        .write(
+      ShoppingItemsTableCompanion(
+        isDeleted: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  Future<void> reorderUncheckedItems({
     required String listId,
-    required List<String> orderedIds,
+    required List<String> orderedUncheckedIds,
   }) async {
     await transaction(() async {
-      for (var index = 0; index < orderedIds.length; index++) {
-        final id = orderedIds[index];
+      for (var index = 0; index < orderedUncheckedIds.length; index++) {
+        final id = orderedUncheckedIds[index];
         await (update(attachedDatabase.shoppingItemsTable)
-              ..where((table) => table.id.equals(id) & table.listId.equals(listId)))
+              ..where(
+                (table) =>
+                    table.id.equals(id) &
+                    table.listId.equals(listId) &
+                    table.isDeleted.equals(false) &
+                    table.isChecked.equals(false),
+              ))
             .write(
           ShoppingItemsTableCompanion(
-            sortOrder: Value(index),
-            updatedAt: Value(DateTime.now()),
+            sortOrder: Value((index + 1) * 1000),
+            updatedAt: Value(DateTime.now().toUtc()),
           ),
         );
       }

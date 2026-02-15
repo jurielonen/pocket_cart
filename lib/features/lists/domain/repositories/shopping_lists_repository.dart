@@ -11,7 +11,9 @@ abstract class ShoppingListsRepository {
 
   Future<void> update(ShoppingList list);
 
-  Future<void> deleteById(String id);
+  Future<void> tombstoneById(String id);
+
+  Future<void> restoreById(String id);
 
   Future<void> reorder({
     required String ownerId,

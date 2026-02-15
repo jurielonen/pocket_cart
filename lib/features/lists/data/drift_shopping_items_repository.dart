@@ -20,15 +20,20 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
 
   @override
   Future<List<ShoppingItem>> getItemsForList(String listId) async {
-    final rows = await _dao.getItemsForList(listId);
+    final rows = await _dao.getItems(listId);
     return rows.map(_toModel).toList(growable: false);
   }
 
   @override
   Stream<List<ShoppingItem>> watchItemsForList(String listId) {
-    return _dao
-        .watchItemsForList(listId)
-        .map((rows) => rows.map(_toModel).toList(growable: false));
+    return _dao.watchItems(listId).map(
+          (rows) => rows.map(_toModel).toList(growable: false),
+        );
+  }
+
+  @override
+  Stream<int> watchActiveItemCount(String listId) {
+    return _dao.watchActiveItemCount(listId);
   }
 
   @override
@@ -38,36 +43,52 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
   }
 
   @override
-  Future<void> create(ShoppingItem item) {
+  Future<void> create(ShoppingItem item) async {
     final now = _now();
+    final nextSortOrder = await _dao.getNextSortOrder(item.listId);
     final writeModel = item.copyWith(
+      sortOrder: nextSortOrder,
       isDeleted: false,
       deletedAt: null,
       updatedAt: now,
+      checkedAt: item.isChecked ? now : null,
     );
-    return _writeAndQueueUpsert(writeModel);
+    await _dao.upsertItem(_toCompanion(writeModel));
+    await _enqueueUpsert(writeModel);
   }
 
   @override
-  Future<void> update(ShoppingItem item) {
+  Future<void> update(ShoppingItem item) async {
     final now = _now();
     final writeModel = item.copyWith(
       updatedAt: now,
       isDeleted: false,
       deletedAt: null,
+      checkedAt: item.isChecked ? (item.checkedAt ?? now) : null,
     );
-    return _writeAndQueueUpsert(writeModel);
+    await _dao.upsertItem(_toCompanion(writeModel));
+    await _enqueueUpsert(writeModel);
   }
 
   @override
-  Future<void> deleteById(String id) async {
+  Future<void> setChecked({required String id, required bool isChecked}) async {
+    await _dao.setItemChecked(id: id, isChecked: isChecked);
+    final updated = await _dao.getItemById(id);
+    if (updated == null) {
+      return;
+    }
+    await _enqueueUpsert(_toModel(updated));
+  }
+
+  @override
+  Future<void> tombstoneById(String id) async {
     final existing = await _dao.getItemById(id);
     if (existing == null || existing.isDeleted) {
       return;
     }
 
     final now = _now();
-    await _dao.softDeleteItemById(id: id, deletedAt: now);
+    await _dao.tombstoneItem(id: id, deletedAt: now);
     await _outboxDao.enqueue(
       SyncOutboxTableCompanion.insert(
         entityType: 'item',
@@ -90,24 +111,33 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
   }
 
   @override
+  Future<void> restoreById(String id) async {
+    final existing = await _dao.getItemById(id);
+    if (existing == null || !existing.isDeleted) {
+      return;
+    }
+
+    await _dao.restoreItem(id: id);
+    final restored = await _dao.getItemById(id);
+    if (restored == null) {
+      return;
+    }
+    await _enqueueUpsert(_toModel(restored));
+  }
+
+  @override
   Future<void> reorder({
     required String listId,
-    required List<String> orderedIds,
+    required List<String> orderedUncheckedIds,
   }) async {
-    await _dao.reorderItems(listId: listId, orderedIds: orderedIds);
-    final reorderedRows = await _dao.getItemsForList(listId);
-    for (final row in reorderedRows) {
-      await _outboxDao.enqueue(
-        SyncOutboxTableCompanion.insert(
-          entityType: 'item',
-          operation: 'upsert',
-          ownerId: '',
-          listId: drift.Value(row.listId),
-          entityId: row.id,
-          payload: jsonEncode(_payloadFromItemRow(row)),
-          createdAt: _now(),
-        ),
-      );
+    await _dao.reorderUncheckedItems(
+      listId: listId,
+      orderedUncheckedIds: orderedUncheckedIds,
+    );
+
+    final rows = await _dao.getItems(listId);
+    for (final row in rows.where((element) => !element.isChecked)) {
+      await _enqueueUpsert(_toModel(row));
     }
   }
 
@@ -118,6 +148,7 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
       name: row.name,
       quantity: row.quantity,
       isChecked: row.isChecked,
+      checkedAt: row.checkedAt,
       isDeleted: row.isDeleted,
       deletedAt: row.deletedAt,
       sortOrder: row.sortOrder,
@@ -133,59 +164,42 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
       name: item.name,
       quantity: drift.Value(item.quantity),
       isChecked: drift.Value(item.isChecked),
+      checkedAt: drift.Value(item.checkedAt),
       isDeleted: drift.Value(item.isDeleted),
       deletedAt: drift.Value(item.deletedAt),
       sortOrder: drift.Value(item.sortOrder),
       createdAt: item.createdAt,
-      updatedAt: drift.Value(item.updatedAt),
+      updatedAt: drift.Value(item.updatedAt ?? item.createdAt),
     );
   }
 
-  Future<void> _writeAndQueueUpsert(ShoppingItem item) async {
-    await _dao.updateItem(_toCompanion(item));
-    await _outboxDao.enqueue(
+  Future<void> _enqueueUpsert(ShoppingItem item) {
+    return _outboxDao.enqueue(
       SyncOutboxTableCompanion.insert(
         entityType: 'item',
         operation: 'upsert',
         ownerId: '',
         listId: drift.Value(item.listId),
         entityId: item.id,
-        payload: jsonEncode(_payloadFromModel(item)),
+        payload: jsonEncode(
+          {
+            'id': item.id,
+            'listId': item.listId,
+            'name': item.name,
+            'quantity': item.quantity,
+            'isChecked': item.isChecked,
+            'checkedAt': item.checkedAt?.millisecondsSinceEpoch,
+            'isDeleted': item.isDeleted,
+            'sortOrder': item.sortOrder,
+            'createdAt': item.createdAt.millisecondsSinceEpoch,
+            'updatedAt':
+                (item.updatedAt ?? item.createdAt).millisecondsSinceEpoch,
+            'deletedAt': item.deletedAt?.millisecondsSinceEpoch,
+          },
+        ),
         createdAt: _now(),
       ),
     );
-  }
-
-  Map<String, dynamic> _payloadFromModel(ShoppingItem item) {
-    return {
-      'id': item.id,
-      'listId': item.listId,
-      'name': item.name,
-      'quantity': item.quantity,
-      'isChecked': item.isChecked,
-      'isDeleted': item.isDeleted,
-      'sortOrder': item.sortOrder,
-      'createdAt': item.createdAt.millisecondsSinceEpoch,
-      'updatedAt':
-          (item.updatedAt ?? item.createdAt).millisecondsSinceEpoch,
-      'deletedAt': item.deletedAt?.millisecondsSinceEpoch,
-    };
-  }
-
-  Map<String, dynamic> _payloadFromItemRow(ShoppingItemsTableData row) {
-    return {
-      'id': row.id,
-      'listId': row.listId,
-      'name': row.name,
-      'quantity': row.quantity,
-      'isChecked': row.isChecked,
-      'isDeleted': row.isDeleted,
-      'sortOrder': row.sortOrder,
-      'createdAt': row.createdAt.millisecondsSinceEpoch,
-      'updatedAt':
-          (row.updatedAt ?? row.createdAt).millisecondsSinceEpoch,
-      'deletedAt': row.deletedAt?.millisecondsSinceEpoch,
-    };
   }
 
   DateTime _now() => DateTime.now().toUtc();

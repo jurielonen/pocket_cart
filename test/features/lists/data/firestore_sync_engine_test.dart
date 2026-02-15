@@ -80,7 +80,7 @@ void main() {
     expect(listDoc.data()?['isDeleted'], false);
     expect(itemDoc.data()?['isDeleted'], false);
 
-    await itemsRepository.deleteById('item-a');
+    await itemsRepository.tombstoneById('item-a');
     await syncEngine.pushPendingChanges();
 
     final deletedItemDoc = await firestore
@@ -99,7 +99,7 @@ void main() {
   test('pulls snapshots and applies last-write-wins with updatedAt', () async {
     final base = DateTime.now().toUtc();
 
-    await database.shoppingListsDao.updateList(
+    await database.shoppingListsDao.upsertList(
       ShoppingListsTableCompanion.insert(
         id: 'list-lww',
         ownerId: uid,
