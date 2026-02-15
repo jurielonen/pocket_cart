@@ -12,7 +12,9 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<ShoppingListsTableData>> getListsForOwner(String ownerId) {
     final query = select(attachedDatabase.shoppingListsTable)
-      ..where((table) => table.ownerId.equals(ownerId))
+      ..where(
+        (table) => table.ownerId.equals(ownerId) & table.isDeleted.equals(false),
+      )
       ..orderBy([
         (table) => OrderingTerm.asc(table.sortOrder),
         (table) => OrderingTerm.asc(table.createdAt),
@@ -22,7 +24,9 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
 
   Stream<List<ShoppingListsTableData>> watchListsForOwner(String ownerId) {
     final query = select(attachedDatabase.shoppingListsTable)
-      ..where((table) => table.ownerId.equals(ownerId))
+      ..where(
+        (table) => table.ownerId.equals(ownerId) & table.isDeleted.equals(false),
+      )
       ..orderBy([
         (table) => OrderingTerm.asc(table.sortOrder),
         (table) => OrderingTerm.asc(table.createdAt),
@@ -34,6 +38,12 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
     return (select(attachedDatabase.shoppingListsTable)
           ..where((table) => table.id.equals(id)))
         .getSingleOrNull();
+  }
+
+  Future<List<ShoppingListsTableData>> getAllListsForOwner(String ownerId) {
+    final query = select(attachedDatabase.shoppingListsTable)
+      ..where((table) => table.ownerId.equals(ownerId));
+    return query.get();
   }
 
   Future<void> insertList(ShoppingListsTableCompanion list) async {
@@ -48,6 +58,21 @@ class ShoppingListsDao extends DatabaseAccessor<AppDatabase>
     return (delete(attachedDatabase.shoppingListsTable)
           ..where((table) => table.id.equals(id)))
         .go();
+  }
+
+  Future<void> softDeleteListById({
+    required String id,
+    required DateTime deletedAt,
+  }) async {
+    await (update(attachedDatabase.shoppingListsTable)
+          ..where((table) => table.id.equals(id)))
+        .write(
+      ShoppingListsTableCompanion(
+        isDeleted: const Value(true),
+        deletedAt: Value(deletedAt),
+        updatedAt: Value(deletedAt),
+      ),
+    );
   }
 
   Future<void> reorderLists({

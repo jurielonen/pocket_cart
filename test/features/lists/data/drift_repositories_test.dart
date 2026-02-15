@@ -17,8 +17,14 @@ void main() {
 
   setUp(() {
     database = AppDatabase.forTesting(NativeDatabase.memory());
-    listsRepository = DriftShoppingListsRepository(database.shoppingListsDao);
-    itemsRepository = DriftShoppingItemsRepository(database.shoppingItemsDao);
+    listsRepository = DriftShoppingListsRepository(
+      database.shoppingListsDao,
+      database.syncOutboxDao,
+    );
+    itemsRepository = DriftShoppingItemsRepository(
+      database.shoppingItemsDao,
+      database.syncOutboxDao,
+    );
   });
 
   tearDown(() async {

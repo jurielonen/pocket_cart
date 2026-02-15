@@ -11,6 +11,8 @@ abstract class ShoppingItem with _$ShoppingItem {
     required String name,
     @Default(1) int quantity,
     @Default(false) bool isChecked,
+    @Default(false) bool isDeleted,
+    DateTime? deletedAt,
     @Default(0) int sortOrder,
     required DateTime createdAt,
     DateTime? updatedAt,

@@ -9,6 +9,10 @@ class ShoppingListsTable extends Table {
 
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
 
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   DateTimeColumn get createdAt => dateTime()();

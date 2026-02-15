@@ -12,7 +12,9 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<ShoppingItemsTableData>> getItemsForList(String listId) {
     final query = select(attachedDatabase.shoppingItemsTable)
-      ..where((table) => table.listId.equals(listId))
+      ..where(
+        (table) => table.listId.equals(listId) & table.isDeleted.equals(false),
+      )
       ..orderBy([
         (table) => OrderingTerm.asc(table.sortOrder),
         (table) => OrderingTerm.asc(table.createdAt),
@@ -22,7 +24,9 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
 
   Stream<List<ShoppingItemsTableData>> watchItemsForList(String listId) {
     final query = select(attachedDatabase.shoppingItemsTable)
-      ..where((table) => table.listId.equals(listId))
+      ..where(
+        (table) => table.listId.equals(listId) & table.isDeleted.equals(false),
+      )
       ..orderBy([
         (table) => OrderingTerm.asc(table.sortOrder),
         (table) => OrderingTerm.asc(table.createdAt),
@@ -34,6 +38,12 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
     return (select(attachedDatabase.shoppingItemsTable)
           ..where((table) => table.id.equals(id)))
         .getSingleOrNull();
+  }
+
+  Future<List<ShoppingItemsTableData>> getAllItemsForList(String listId) {
+    final query = select(attachedDatabase.shoppingItemsTable)
+      ..where((table) => table.listId.equals(listId));
+    return query.get();
   }
 
   Future<void> insertItem(ShoppingItemsTableCompanion item) async {
@@ -48,6 +58,21 @@ class ShoppingItemsDao extends DatabaseAccessor<AppDatabase>
     return (delete(attachedDatabase.shoppingItemsTable)
           ..where((table) => table.id.equals(id)))
         .go();
+  }
+
+  Future<void> softDeleteItemById({
+    required String id,
+    required DateTime deletedAt,
+  }) async {
+    await (update(attachedDatabase.shoppingItemsTable)
+          ..where((table) => table.id.equals(id)))
+        .write(
+      ShoppingItemsTableCompanion(
+        isDeleted: const Value(true),
+        deletedAt: Value(deletedAt),
+        updatedAt: Value(deletedAt),
+      ),
+    );
   }
 
   Future<void> reorderItems({
