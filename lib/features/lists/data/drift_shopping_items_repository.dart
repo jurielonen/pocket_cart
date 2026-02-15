@@ -9,14 +9,18 @@ import '../../../core/database/daos/sync_outbox_dao.dart';
 import '../../../core/database/database_provider.dart';
 import '../domain/models/shopping_item.dart';
 import '../domain/repositories/shopping_items_repository.dart';
+import '../domain/write_origin.dart';
+import 'sync/outbox_operation.dart';
+import 'sync/device_id_provider.dart';
 
 part 'drift_shopping_items_repository.g.dart';
 
 class DriftShoppingItemsRepository implements ShoppingItemsRepository {
-  DriftShoppingItemsRepository(this._dao, this._outboxDao);
+  DriftShoppingItemsRepository(this._dao, this._outboxDao, this._deviceId);
 
   final ShoppingItemsDao _dao;
   final SyncOutboxDao _outboxDao;
+  final String _deviceId;
 
   @override
   Future<List<ShoppingItem>> getItemsForList(String listId) async {
@@ -43,7 +47,12 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
   }
 
   @override
-  Future<void> create(ShoppingItem item) async {
+  Future<void> create(ShoppingItem item, {WriteOrigin origin = WriteOrigin.localUser}) async {
+    if (origin == WriteOrigin.remoteSync) {
+      await _upsertInternal(item, origin: origin, opType: OutboxOpType.upsert);
+      return;
+    }
+
     final now = _now();
     final nextSortOrder = await _dao.getNextSortOrder(item.listId);
     final writeModel = item.copyWith(
@@ -51,78 +60,82 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
       isDeleted: false,
       deletedAt: null,
       updatedAt: now,
-      checkedAt: item.isChecked ? now : null,
+      checkedAt: item.isChecked ? (item.checkedAt ?? now) : null,
+      revision: item.revision + 1,
+      deviceId: _deviceId,
     );
-    await _dao.upsertItem(_toCompanion(writeModel));
-    await _enqueueUpsert(writeModel);
+    await _upsertInternal(writeModel, origin: origin, opType: OutboxOpType.upsert);
   }
 
   @override
-  Future<void> update(ShoppingItem item) async {
+  Future<void> update(ShoppingItem item, {WriteOrigin origin = WriteOrigin.localUser}) async {
+    if (origin == WriteOrigin.remoteSync) {
+      await _upsertInternal(item, origin: origin, opType: OutboxOpType.upsert);
+      return;
+    }
+
     final now = _now();
     final writeModel = item.copyWith(
       updatedAt: now,
-      isDeleted: false,
-      deletedAt: null,
       checkedAt: item.isChecked ? (item.checkedAt ?? now) : null,
+      revision: item.revision + 1,
+      deviceId: _deviceId,
     );
-    await _dao.upsertItem(_toCompanion(writeModel));
-    await _enqueueUpsert(writeModel);
+    await _upsertInternal(writeModel, origin: origin, opType: OutboxOpType.upsert);
   }
 
   @override
-  Future<void> setChecked({required String id, required bool isChecked}) async {
-    await _dao.setItemChecked(id: id, isChecked: isChecked);
-    final updated = await _dao.getItemById(id);
-    if (updated == null) {
+  Future<void> setChecked({required String id, required bool isChecked, WriteOrigin origin = WriteOrigin.localUser}) async {
+    final existing = await _dao.getItemById(id);
+    if (existing == null) {
       return;
     }
-    await _enqueueUpsert(_toModel(updated));
+
+    final now = _now();
+    final updated = _toModel(existing).copyWith(
+          isChecked: isChecked,
+          checkedAt: isChecked ? now : null,
+          updatedAt: now,
+          revision: existing.revision + 1,
+          deviceId: _deviceId,
+        );
+    await _upsertInternal(updated, origin: origin, opType: OutboxOpType.upsert);
   }
 
   @override
-  Future<void> tombstoneById(String id) async {
+  Future<void> tombstoneById(String id, {WriteOrigin origin = WriteOrigin.localUser}) async {
     final existing = await _dao.getItemById(id);
     if (existing == null || existing.isDeleted) {
       return;
     }
 
     final now = _now();
-    await _dao.tombstoneItem(id: id, deletedAt: now);
-    await _outboxDao.enqueue(
-      SyncOutboxTableCompanion.insert(
-        entityType: 'item',
-        operation: 'delete',
-        ownerId: '',
-        listId: drift.Value(existing.listId),
-        entityId: id,
-        payload: jsonEncode(
-          {
-            'id': id,
-            'listId': existing.listId,
-            'isDeleted': true,
-            'deletedAt': now.millisecondsSinceEpoch,
-            'updatedAt': now.millisecondsSinceEpoch,
-          },
-        ),
-        createdAt: now,
-      ),
-    );
+    final tombstoned = _toModel(existing).copyWith(
+          isDeleted: true,
+          deletedAt: now,
+          updatedAt: now,
+          revision: existing.revision + 1,
+          deviceId: _deviceId,
+        );
+    await _upsertInternal(tombstoned, origin: origin, opType: OutboxOpType.tombstone);
   }
 
   @override
-  Future<void> restoreById(String id) async {
+  Future<void> restoreById(String id, {WriteOrigin origin = WriteOrigin.localUser}) async {
     final existing = await _dao.getItemById(id);
     if (existing == null || !existing.isDeleted) {
       return;
     }
 
-    await _dao.restoreItem(id: id);
-    final restored = await _dao.getItemById(id);
-    if (restored == null) {
-      return;
-    }
-    await _enqueueUpsert(_toModel(restored));
+    final now = _now();
+    final restored = _toModel(existing).copyWith(
+          isDeleted: false,
+          deletedAt: null,
+          updatedAt: now,
+          revision: existing.revision + 1,
+          deviceId: _deviceId,
+        );
+    await _upsertInternal(restored, origin: origin, opType: OutboxOpType.restore);
   }
 
   @override
@@ -137,21 +150,80 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
 
     final rows = await _dao.getItems(listId);
     for (final row in rows.where((element) => !element.isChecked)) {
-      await _enqueueUpsert(_toModel(row));
+      final updated = _toModel(row).copyWith(
+        revision: row.revision + 1,
+        deviceId: _deviceId,
+      );
+      await _upsertInternal(updated, origin: WriteOrigin.localUser, opType: OutboxOpType.upsert);
     }
+  }
+
+  Future<void> _upsertInternal(
+    ShoppingItem item, {
+    required WriteOrigin origin,
+    required OutboxOpType opType,
+  }) {
+    return _dao.attachedDatabase.transaction(() async {
+      await _dao.upsertItem(_toCompanion(item));
+      if (origin == WriteOrigin.localUser) {
+        await _enqueue(item: item, opType: opType);
+      }
+    });
+  }
+
+  Future<void> _enqueue({required ShoppingItem item, required OutboxOpType opType}) {
+    final millis = (item.updatedAt ?? item.createdAt).millisecondsSinceEpoch;
+    return _outboxDao.enqueue(
+      id: _outboxId('item', item.id, millis),
+      entityType: OutboxEntityType.item,
+      entityId: item.id,
+      listId: item.listId,
+      opType: opType,
+      payloadJson: jsonEncode(_toRemoteMap(item)),
+      updatedAtMillis: millis,
+      createdAtMillis: _now().millisecondsSinceEpoch,
+    );
+  }
+
+  Map<String, dynamic> _toRemoteMap(ShoppingItem item) {
+    return {
+      'id': item.id,
+      'listId': item.listId,
+      'ownerId': item.ownerId,
+      'name': item.name,
+      'quantity': item.quantity,
+      'unit': item.unit,
+      'category': item.category,
+      'note': item.note,
+      'isChecked': item.isChecked,
+      'checkedAt': item.checkedAt?.millisecondsSinceEpoch,
+      'sortOrder': item.sortOrder,
+      'isDeleted': item.isDeleted,
+      'createdAt': item.createdAt.millisecondsSinceEpoch,
+      'updatedAt': (item.updatedAt ?? item.createdAt).millisecondsSinceEpoch,
+      'deletedAt': item.deletedAt?.millisecondsSinceEpoch,
+      'revision': item.revision,
+      'deviceId': item.deviceId,
+    };
   }
 
   ShoppingItem _toModel(ShoppingItemsTableData row) {
     return ShoppingItem(
       id: row.id,
       listId: row.listId,
+      ownerId: row.ownerId,
       name: row.name,
       quantity: row.quantity,
+      unit: row.unit,
+      category: row.category,
+      note: row.note,
       isChecked: row.isChecked,
       checkedAt: row.checkedAt,
       isDeleted: row.isDeleted,
       deletedAt: row.deletedAt,
       sortOrder: row.sortOrder,
+      revision: row.revision,
+      deviceId: row.deviceId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );
@@ -161,45 +233,26 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
     return ShoppingItemsTableCompanion.insert(
       id: item.id,
       listId: item.listId,
+      ownerId: drift.Value(item.ownerId),
       name: item.name,
       quantity: drift.Value(item.quantity),
+      unit: drift.Value(item.unit),
+      category: drift.Value(item.category),
+      note: drift.Value(item.note),
       isChecked: drift.Value(item.isChecked),
       checkedAt: drift.Value(item.checkedAt),
       isDeleted: drift.Value(item.isDeleted),
       deletedAt: drift.Value(item.deletedAt),
       sortOrder: drift.Value(item.sortOrder),
+      revision: drift.Value(item.revision),
+      deviceId: drift.Value(item.deviceId),
       createdAt: item.createdAt,
       updatedAt: drift.Value(item.updatedAt ?? item.createdAt),
     );
   }
 
-  Future<void> _enqueueUpsert(ShoppingItem item) {
-    return _outboxDao.enqueue(
-      SyncOutboxTableCompanion.insert(
-        entityType: 'item',
-        operation: 'upsert',
-        ownerId: '',
-        listId: drift.Value(item.listId),
-        entityId: item.id,
-        payload: jsonEncode(
-          {
-            'id': item.id,
-            'listId': item.listId,
-            'name': item.name,
-            'quantity': item.quantity,
-            'isChecked': item.isChecked,
-            'checkedAt': item.checkedAt?.millisecondsSinceEpoch,
-            'isDeleted': item.isDeleted,
-            'sortOrder': item.sortOrder,
-            'createdAt': item.createdAt.millisecondsSinceEpoch,
-            'updatedAt':
-                (item.updatedAt ?? item.createdAt).millisecondsSinceEpoch,
-            'deletedAt': item.deletedAt?.millisecondsSinceEpoch,
-          },
-        ),
-        createdAt: _now(),
-      ),
-    );
+  String _outboxId(String entityType, String entityId, int millis) {
+    return '$entityType:$entityId:$millis';
   }
 
   DateTime _now() => DateTime.now().toUtc();
@@ -209,5 +262,6 @@ class DriftShoppingItemsRepository implements ShoppingItemsRepository {
 ShoppingItemsRepository shoppingItemsRepository(Ref ref) {
   final dao = ref.watch(shoppingItemsDaoProvider);
   final outboxDao = ref.watch(syncOutboxDaoProvider);
-  return DriftShoppingItemsRepository(dao, outboxDao);
+  final deviceId = ref.watch(syncDeviceIdProvider);
+  return DriftShoppingItemsRepository(dao, outboxDao, deviceId);
 }

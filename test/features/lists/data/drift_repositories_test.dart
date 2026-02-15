@@ -20,10 +20,12 @@ void main() {
     listsRepository = DriftShoppingListsRepository(
       database.shoppingListsDao,
       database.syncOutboxDao,
+      'test-device',
     );
     itemsRepository = DriftShoppingItemsRepository(
       database.shoppingItemsDao,
       database.syncOutboxDao,
+      'test-device',
     );
   });
 

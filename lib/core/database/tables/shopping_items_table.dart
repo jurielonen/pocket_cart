@@ -5,9 +5,17 @@ class ShoppingItemsTable extends Table {
 
   TextColumn get listId => text()();
 
+  TextColumn get ownerId => text().withDefault(const Constant(''))();
+
   TextColumn get name => text()();
 
-  IntColumn get quantity => integer().withDefault(const Constant(1))();
+  RealColumn get quantity => real().nullable()();
+
+  TextColumn get unit => text().nullable()();
+
+  TextColumn get category => text().nullable()();
+
+  TextColumn get note => text().nullable()();
 
   BoolColumn get isChecked => boolean().withDefault(const Constant(false))();
 
@@ -18,6 +26,10 @@ class ShoppingItemsTable extends Table {
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  TextColumn get deviceId => text().nullable()();
 
   DateTimeColumn get createdAt => dateTime()();
 

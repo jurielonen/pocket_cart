@@ -1,0 +1,4 @@
+enum WriteOrigin {
+  localUser,
+  remoteSync,
+}

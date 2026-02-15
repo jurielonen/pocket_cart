@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -43,6 +43,24 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.checkedAt);
+          }
+          if (from < 5) {
+            await migrator.addColumn(shoppingListsTable, shoppingListsTable.color);
+            await migrator.addColumn(shoppingListsTable, shoppingListsTable.icon);
+            await migrator.addColumn(shoppingListsTable, shoppingListsTable.sortMode);
+            await migrator.addColumn(shoppingListsTable, shoppingListsTable.revision);
+            await migrator.addColumn(shoppingListsTable, shoppingListsTable.deviceId);
+
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.ownerId);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.quantity);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.unit);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.category);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.note);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.revision);
+            await migrator.addColumn(shoppingItemsTable, shoppingItemsTable.deviceId);
+
+            await customStatement('DROP TABLE IF EXISTS sync_outbox_table;');
+            await migrator.createTable(syncOutboxTable);
           }
         },
       );

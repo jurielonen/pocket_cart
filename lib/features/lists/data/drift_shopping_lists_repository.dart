@@ -9,14 +9,18 @@ import '../../../core/database/daos/sync_outbox_dao.dart';
 import '../../../core/database/database_provider.dart';
 import '../domain/models/shopping_list.dart';
 import '../domain/repositories/shopping_lists_repository.dart';
+import '../domain/write_origin.dart';
+import 'sync/outbox_operation.dart';
+import 'sync/device_id_provider.dart';
 
 part 'drift_shopping_lists_repository.g.dart';
 
 class DriftShoppingListsRepository implements ShoppingListsRepository {
-  DriftShoppingListsRepository(this._dao, this._outboxDao);
+  DriftShoppingListsRepository(this._dao, this._outboxDao, this._deviceId);
 
   final ShoppingListsDao _dao;
   final SyncOutboxDao _outboxDao;
+  final String _deviceId;
 
   @override
   Future<List<ShoppingList>> getListsForOwner(String ownerId) async {
@@ -38,78 +42,77 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
   }
 
   @override
-  Future<void> create(ShoppingList list) async {
+  Future<void> create(ShoppingList list, {WriteOrigin origin = WriteOrigin.localUser}) async {
+    if (origin == WriteOrigin.remoteSync) {
+      await _upsertInternal(list, origin: origin, opType: OutboxOpType.upsert);
+      return;
+    }
+
     final now = _now();
     final writeModel = list.copyWith(
       updatedAt: now,
       isDeleted: false,
       deletedAt: null,
+      revision: list.revision + 1,
+      deviceId: _deviceId,
     );
-    await _dao.upsertList(_toCompanion(writeModel));
-    await _enqueueUpsert(writeModel);
+    await _upsertInternal(writeModel, origin: origin, opType: OutboxOpType.upsert);
   }
 
   @override
-  Future<void> update(ShoppingList list) async {
+  Future<void> update(ShoppingList list, {WriteOrigin origin = WriteOrigin.localUser}) async {
+    if (origin == WriteOrigin.remoteSync) {
+      await _upsertInternal(list, origin: origin, opType: OutboxOpType.upsert);
+      return;
+    }
+
     final now = _now();
     final writeModel = list.copyWith(
       updatedAt: now,
-      isDeleted: false,
-      deletedAt: null,
+      revision: list.revision + 1,
+      deviceId: _deviceId,
     );
-    await _dao.upsertList(_toCompanion(writeModel));
-    await _enqueueUpsert(writeModel);
+    await _upsertInternal(writeModel, origin: origin, opType: OutboxOpType.upsert);
   }
 
   @override
-  Future<void> tombstoneById(String id) async {
+  Future<void> tombstoneById(String id, {WriteOrigin origin = WriteOrigin.localUser}) async {
     final existing = await _dao.getListById(id);
     if (existing == null || existing.isDeleted) {
       return;
     }
 
     final now = _now();
-    await _dao.tombstoneList(id: id, deletedAt: now);
-    await _outboxDao.enqueue(
-      SyncOutboxTableCompanion.insert(
-        entityType: 'list',
-        operation: 'delete',
-        ownerId: existing.ownerId,
-        entityId: id,
-        payload: jsonEncode(
-          {
-            'id': id,
-            'ownerId': existing.ownerId,
-            'isDeleted': true,
-            'deletedAt': now.millisecondsSinceEpoch,
-            'updatedAt': now.millisecondsSinceEpoch,
-          },
-        ),
-        createdAt: now,
-      ),
-    );
+    final tombstoned = _toModel(existing).copyWith(
+          isDeleted: true,
+          deletedAt: now,
+          updatedAt: now,
+          revision: existing.revision + 1,
+          deviceId: _deviceId,
+        );
+    await _upsertInternal(tombstoned, origin: origin, opType: OutboxOpType.tombstone);
   }
 
   @override
-  Future<void> restoreById(String id) async {
+  Future<void> restoreById(String id, {WriteOrigin origin = WriteOrigin.localUser}) async {
     final existing = await _dao.getListById(id);
     if (existing == null || !existing.isDeleted) {
       return;
     }
 
-    await _dao.restoreList(id: id);
-    final restored = await _dao.getListById(id);
-    if (restored == null) {
-      return;
-    }
-    await _enqueueUpsert(_toModel(restored));
+    final now = _now();
+    final restored = _toModel(existing).copyWith(
+          isDeleted: false,
+          deletedAt: null,
+          updatedAt: now,
+          revision: existing.revision + 1,
+          deviceId: _deviceId,
+        );
+    await _upsertInternal(restored, origin: origin, opType: OutboxOpType.restore);
   }
 
   @override
-  Future<void> reorder({
-    required String ownerId,
-    required List<String> orderedIds,
-  }) async {
+  Future<void> reorder({required String ownerId, required List<String> orderedIds}) async {
     final existing = await _dao.getLists(ownerId);
     for (var index = 0; index < orderedIds.length; index++) {
       final id = orderedIds[index];
@@ -123,13 +126,60 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
       if (row == null) {
         continue;
       }
+
       final updated = _toModel(row).copyWith(
         sortOrder: (index + 1) * 1000,
         updatedAt: _now(),
+        revision: row.revision + 1,
+        deviceId: _deviceId,
       );
-      await _dao.upsertList(_toCompanion(updated));
-      await _enqueueUpsert(updated);
+      await _upsertInternal(updated, origin: WriteOrigin.localUser, opType: OutboxOpType.upsert);
     }
+  }
+
+  Future<void> _upsertInternal(
+    ShoppingList list, {
+    required WriteOrigin origin,
+    required OutboxOpType opType,
+  }) {
+    return _dao.attachedDatabase.transaction(() async {
+      await _dao.upsertList(_toCompanion(list));
+      if (origin == WriteOrigin.localUser) {
+        await _enqueue(list: list, opType: opType);
+      }
+    });
+  }
+
+  Future<void> _enqueue({required ShoppingList list, required OutboxOpType opType}) {
+    final millis = (list.updatedAt ?? list.createdAt).millisecondsSinceEpoch;
+    return _outboxDao.enqueue(
+      id: _outboxId('list', list.id, millis),
+      entityType: OutboxEntityType.list,
+      entityId: list.id,
+      opType: opType,
+      payloadJson: jsonEncode(_toRemoteMap(list)),
+      updatedAtMillis: millis,
+      createdAtMillis: _now().millisecondsSinceEpoch,
+    );
+  }
+
+  Map<String, dynamic> _toRemoteMap(ShoppingList list) {
+    return {
+      'id': list.id,
+      'ownerId': list.ownerId,
+      'name': list.name,
+      'color': list.color,
+      'icon': list.icon,
+      'sortMode': list.sortMode,
+      'isArchived': list.isArchived,
+      'isDeleted': list.isDeleted,
+      'createdAt': list.createdAt.millisecondsSinceEpoch,
+      'updatedAt': (list.updatedAt ?? list.createdAt).millisecondsSinceEpoch,
+      'deletedAt': list.deletedAt?.millisecondsSinceEpoch,
+      'revision': list.revision,
+      'deviceId': list.deviceId,
+      'sortOrder': list.sortOrder,
+    };
   }
 
   ShoppingList _toModel(ShoppingListsTableData row) {
@@ -137,10 +187,15 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
       id: row.id,
       ownerId: row.ownerId,
       name: row.name,
+      color: row.color,
+      icon: row.icon,
+      sortMode: row.sortMode,
       isArchived: row.isArchived,
       isDeleted: row.isDeleted,
       deletedAt: row.deletedAt,
       sortOrder: row.sortOrder,
+      revision: row.revision,
+      deviceId: row.deviceId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );
@@ -151,39 +206,22 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
       id: list.id,
       ownerId: list.ownerId,
       name: list.name,
+      color: drift.Value(list.color),
+      icon: drift.Value(list.icon),
+      sortMode: drift.Value(list.sortMode),
       isArchived: drift.Value(list.isArchived),
       isDeleted: drift.Value(list.isDeleted),
       deletedAt: drift.Value(list.deletedAt),
       sortOrder: drift.Value(list.sortOrder),
+      revision: drift.Value(list.revision),
+      deviceId: drift.Value(list.deviceId),
       createdAt: list.createdAt,
       updatedAt: drift.Value(list.updatedAt ?? list.createdAt),
     );
   }
 
-  Future<void> _enqueueUpsert(ShoppingList list) {
-    return _outboxDao.enqueue(
-      SyncOutboxTableCompanion.insert(
-        entityType: 'list',
-        operation: 'upsert',
-        ownerId: list.ownerId,
-        entityId: list.id,
-        payload: jsonEncode(
-          {
-            'id': list.id,
-            'ownerId': list.ownerId,
-            'name': list.name,
-            'isArchived': list.isArchived,
-            'isDeleted': list.isDeleted,
-            'sortOrder': list.sortOrder,
-            'createdAt': list.createdAt.millisecondsSinceEpoch,
-            'updatedAt':
-                (list.updatedAt ?? list.createdAt).millisecondsSinceEpoch,
-            'deletedAt': list.deletedAt?.millisecondsSinceEpoch,
-          },
-        ),
-        createdAt: _now(),
-      ),
-    );
+  String _outboxId(String entityType, String entityId, int millis) {
+    return '$entityType:$entityId:$millis';
   }
 
   DateTime _now() => DateTime.now().toUtc();
@@ -193,5 +231,6 @@ class DriftShoppingListsRepository implements ShoppingListsRepository {
 ShoppingListsRepository shoppingListsRepository(Ref ref) {
   final dao = ref.watch(shoppingListsDaoProvider);
   final outboxDao = ref.watch(syncOutboxDaoProvider);
-  return DriftShoppingListsRepository(dao, outboxDao);
+  final deviceId = ref.watch(syncDeviceIdProvider);
+  return DriftShoppingListsRepository(dao, outboxDao, deviceId);
 }

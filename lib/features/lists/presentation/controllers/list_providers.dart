@@ -121,6 +121,7 @@ class ListDetailController {
     }
 
     final repository = _ref.read(shoppingItemsRepositoryProvider);
+    final ownerId = _ref.read(currentUserIdProvider);
     final now = DateTime.now().toUtc();
     final id = 'item_${now.microsecondsSinceEpoch}';
 
@@ -128,6 +129,7 @@ class ListDetailController {
       ShoppingItem(
         id: id,
         listId: listId,
+        ownerId: ownerId,
         name: name,
         createdAt: now,
         updatedAt: now,

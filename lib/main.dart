@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_router.dart';
+import 'features/lists/data/sync/sync_providers.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -12,11 +13,13 @@ Future<void> main() async {
   runApp(const ProviderScope(child: PocketCartApp()));
 }
 
-class PocketCartApp extends StatelessWidget {
+class PocketCartApp extends ConsumerWidget {
   const PocketCartApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(syncLifecycleProvider);
+
     return MaterialApp.router(
       title: 'Pocket Cart',
       theme: ThemeData(
