@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app_router.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/firebase_auth_repository.dart';
 
@@ -80,11 +81,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               child: Text(_isLoading ? 'Signing in...' : 'Sign In'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/signup'),
+              onPressed: () => const SignUpRoute().push(context),
               child: const Text('Create account'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/reset-password'),
+              onPressed: () => const ResetPasswordRoute().push(context),
               child: const Text('Forgot password?'),
             ),
           ],

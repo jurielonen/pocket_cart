@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app_router.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/firebase_auth_repository.dart';
 
@@ -36,7 +37,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop();
+      const SignInRoute().go(context);
     } catch (error, stackTrace) {
       ref.read(appLoggerProvider).e(
             'Failed to sign up.',
