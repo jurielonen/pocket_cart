@@ -49,6 +49,9 @@ app.*.map.json
 **/*.g.dart
 **/*.mocks.dart
 
+# FVM Version Cache
+.fvm/
+
 # firebase files
 lib/firebase_options.dart
 android/app/google-services.json
