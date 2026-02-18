@@ -1,6 +1,7 @@
 # pocket_cart
 
-A new Flutter project.
+Pocket Cart is a Flutter shopping list creator app built with an offline-first local database and Firebase sync.
+This repository is also used to test out GPT-5.3-Codex.
 
 ## Getting Started
 
