@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'firestore_timestamp_converters.dart';
+
 part 'shopping_item.freezed.dart';
 part 'shopping_item.g.dart';
 
@@ -15,14 +17,14 @@ abstract class ShoppingItem with _$ShoppingItem {
     String? category,
     String? note,
     @Default(false) bool isChecked,
-    DateTime? checkedAt,
+    @NullableFirestoreDateTimeConverter() DateTime? checkedAt,
     @Default(false) bool isDeleted,
-    DateTime? deletedAt,
+    @NullableFirestoreDateTimeConverter() DateTime? deletedAt,
     @Default(0) int sortOrder,
     @Default(0) int revision,
     String? deviceId,
-    required DateTime createdAt,
-    DateTime? updatedAt,
+    @FirestoreDateTimeConverter() required DateTime createdAt,
+    @NullableFirestoreDateTimeConverter() DateTime? updatedAt,
   }) = _ShoppingItem;
 
   factory ShoppingItem.fromJson(Map<String, dynamic> json) =>

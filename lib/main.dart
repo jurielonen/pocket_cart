@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_router.dart';
 import 'core/extensions/build_context_l10n.dart';
-import 'features/lists/data/sync/sync_providers.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 
@@ -20,8 +19,6 @@ class PocketCartApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(syncLifecycleProvider);
-
     return MaterialApp.router(
       onGenerateTitle: (context) => context.l10n.appTitle,
       theme: ThemeData(

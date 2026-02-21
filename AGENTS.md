@@ -1,12 +1,11 @@
 # Pocket Cart — Agent Instructions (Codex / AI)
 
-This repo is a Flutter app: **shopping list creator** with offline-first local DB + Firebase sync.
+This repo is a Flutter app: **shopping list creator** backed by Firebase Auth + Cloud Firestore.
 
 ## Non-negotiables
 - **Flutter SDK via FVM only** (no system Flutter).
 - **State management:** Riverpod with code generation (`flutter_riverpod`, `riverpod_annotation`, `riverpod_generator`).
 - **Data models:** Freezed + `json_serializable` (`freezed_annotation`, `json_annotation`).
-- **Local database:** Drift (offline-first, source of truth for UI).
 - **Cloud:** Firebase Auth (email/password) + Cloud Firestore (per-user schema).
 - **No Retrofit/Dio** in this project.
 
@@ -63,32 +62,33 @@ This repo is a Flutter app: **shopping list creator** with offline-first local D
     - `lib/features/auth/`
     - `lib/features/lists/`
     - `lib/features/settings/`
-    - `lib/core/` (database, logging, constants, errors)
+    - `lib/core/` (logging, constants, errors)
 - Keep boundaries clear:
-    - UI (presentation) → controllers/notifiers → repositories → datasources (local/remote)
+    - UI (presentation) → controllers/notifiers → repositories → Firebase datasource
 - Avoid “god classes”. Prefer small, focused files.
 
 ---
 
-## Drift + offline-first rules
-- Drift is the **source of truth** for UI and business logic.
+## Firestore data rules
 - No hard deletes: use tombstones:
     - `isDeleted=true` and `deletedAt` set.
 - Maintain `createdAt` and `updatedAt` for lists/items.
 - Manual ordering:
     - items use `sortOrder` (int); reordering updates `sortOrder`.
-- Search should be performed **locally** (Drift), not via Firestore.
+- Keep repository-level ordering consistent with UI expectations:
+    - lists: newest `updatedAt`/`createdAt` first
+    - items: unchecked first, then `sortOrder`, then recency
+- Keep writes idempotent with `SetOptions(merge: true)` where appropriate.
 
 ---
 
-## Firebase + sync rules
+## Firebase rules
 - Per-user Firestore schema:
     - `users/{uid}/lists/{listId}`
     - `users/{uid}/lists/{listId}/items/{itemId}`
-- Sync strategy:
-    - Local-first with an **outbox queue** for user-initiated changes.
-    - Remote changes applied locally must NOT enqueue outbox events (avoid echo loops).
-    - Conflict strategy: **last-write-wins** using `updatedAt`.
+- Firestore is the source of truth for app data.
+- Read/write lists and items directly through Firestore repositories.
+- Conflict strategy: **last-write-wins** using `updatedAt`.
 
 ---
 
@@ -97,15 +97,14 @@ This repo is a Flutter app: **shopping list creator** with offline-first local D
     - `riverpod_generator`
     - `freezed`
     - `json_serializable`
-    - `drift_dev`
     - `go_router_builder`
-- After changing annotated files, models, routes, or Drift schema, run:
+- After changing annotated files, models, providers, or routes, run:
     - `fvm dart run build_runner build -d`
 
 ---
 
 ## Testing & quality gate
-- Minimum: unit tests for repositories/DAOs and sync conflict logic.
+- Minimum: unit tests for Firestore repositories and data mapping/ordering logic.
 - Preferred: at least one widget test per major flow.
 - Before finishing a task, run:
     - `fvm flutter pub get`
