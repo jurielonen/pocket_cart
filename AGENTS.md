@@ -114,6 +114,12 @@ This repo is a Flutter app: **shopping list creator** backed by Firebase Auth + 
 
 ---
 
-## Git workflow
-- Make incremental commits with clear messages (Conventional Commits preferred).
-- Summarize changes and list the exact commands to verify after modifications.
+## Git Workflow
+
+**Always create a new branch before making any code changes.**
+
+- Before writing, editing, or deleting any file, check the current branch with `git branch --show-current`
+- If you are on `main` (or any branch that is not a dedicated feature/fix branch for the current task), create and switch to a new branch first
+- Branch naming convention: `<type>/<short-description>` — e.g., `feat/player-search`, `fix/watchlist-crash`, `refactor/drift-migration`
+- Never commit directly to `main`
+- This rule applies to every task, no matter how small — a one-line fix still requires its own branch
