@@ -106,7 +106,11 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                             item: item,
                             onChanged: (checked) => ref
                                 .read(listDetailControllerProvider)
-                                .setChecked(id: item.id, isChecked: checked),
+                                .setChecked(
+                                  listId: widget.listId,
+                                  id: item.id,
+                                  isChecked: checked,
+                                ),
                             onDelete: () => _deleteWithUndo(item),
                           );
                         },
@@ -125,7 +129,11 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                         item: item,
                         onChanged: (checked) => ref
                             .read(listDetailControllerProvider)
-                            .setChecked(id: item.id, isChecked: checked),
+                            .setChecked(
+                              listId: widget.listId,
+                              id: item.id,
+                              isChecked: checked,
+                            ),
                         onDelete: () => _deleteWithUndo(item),
                       ),
                   ],
@@ -171,7 +179,9 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
 
   Future<void> _deleteWithUndo(ShoppingItem item) async {
     final l10n = context.l10n;
-    await ref.read(listDetailControllerProvider).deleteItem(item.id);
+    await ref
+        .read(listDetailControllerProvider)
+        .deleteItem(listId: widget.listId, id: item.id);
     if (!mounted) {
       return;
     }
@@ -181,8 +191,9 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         content: Text(l10n.listsDeletedItem(item.name)),
         action: SnackBarAction(
           label: l10n.commonUndo,
-          onPressed: () =>
-              ref.read(listDetailControllerProvider).restoreItem(item.id),
+          onPressed: () => ref
+              .read(listDetailControllerProvider)
+              .restoreItem(listId: widget.listId, id: item.id),
         ),
       ),
     );

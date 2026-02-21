@@ -8,7 +8,10 @@ abstract class ShoppingItemsRepository {
 
   Stream<int> watchActiveItemCount(String listId);
 
-  Future<ShoppingItem?> getById(String id);
+  Future<ShoppingItem?> getById({
+    required String listId,
+    required String id,
+  });
 
   Future<void> create(
     ShoppingItem item, {
@@ -21,6 +24,7 @@ abstract class ShoppingItemsRepository {
   });
 
   Future<void> setChecked({
+    required String listId,
     required String id,
     required bool isChecked,
     WriteOrigin origin = WriteOrigin.localUser,
@@ -28,11 +32,13 @@ abstract class ShoppingItemsRepository {
 
   Future<void> tombstoneById(
     String id, {
+    required String listId,
     WriteOrigin origin = WriteOrigin.localUser,
   });
 
   Future<void> restoreById(
     String id, {
+    required String listId,
     WriteOrigin origin = WriteOrigin.localUser,
   });
 

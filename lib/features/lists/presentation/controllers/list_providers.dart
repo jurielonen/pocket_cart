@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../data/drift_shopping_items_repository.dart';
-import '../../data/drift_shopping_lists_repository.dart';
+import '../../data/firestore_shopping_items_repository.dart';
+import '../../data/firestore_shopping_lists_repository.dart';
 import '../../domain/models/shopping_item.dart';
 import '../../domain/models/shopping_list.dart';
 
@@ -114,7 +114,10 @@ class ListDetailController {
 
   final Ref _ref;
 
-  Future<void> addItem({required String listId, required String rawName}) async {
+  Future<void> addItem({
+    required String listId,
+    required String rawName,
+  }) async {
     final name = rawName.trim();
     if (name.isEmpty) {
       return;
@@ -137,19 +140,23 @@ class ListDetailController {
     );
   }
 
-  Future<void> setChecked({required String id, required bool isChecked}) async {
+  Future<void> setChecked({
+    required String listId,
+    required String id,
+    required bool isChecked,
+  }) async {
     final repository = _ref.read(shoppingItemsRepositoryProvider);
-    await repository.setChecked(id: id, isChecked: isChecked);
+    await repository.setChecked(listId: listId, id: id, isChecked: isChecked);
   }
 
-  Future<void> deleteItem(String id) async {
+  Future<void> deleteItem({required String listId, required String id}) async {
     final repository = _ref.read(shoppingItemsRepositoryProvider);
-    await repository.tombstoneById(id);
+    await repository.tombstoneById(id, listId: listId);
   }
 
-  Future<void> restoreItem(String id) async {
+  Future<void> restoreItem({required String listId, required String id}) async {
     final repository = _ref.read(shoppingItemsRepositoryProvider);
-    await repository.restoreById(id);
+    await repository.restoreById(id, listId: listId);
   }
 
   Future<void> reorderUnchecked({
